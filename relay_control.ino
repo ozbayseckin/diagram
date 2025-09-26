@@ -17,6 +17,6 @@ void loop() {
     digitalWrite(relayPins[i], HIGH); // Turn relay on
     delay(1000);                     // Wait 1 second
     digitalWrite(relayPins[i], LOW);  // Turn relay off
-    // No delay between relays, proceeds immediately to next.
+    // No delay between relays, proceeds immediately to next.cccc
   }
 }
