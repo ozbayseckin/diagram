@@ -1,5 +1,14 @@
 // Arduino Mega code for pneumatic system control with 16 relays and buttons
 // Controls compressor, valves, and sequences based on button presses
+// Displays processes and countdown timers on SSD1315 OLED display
+
+#include <Wire.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Relay pin assignments (relays are active HIGH)
 const int compressorPower = 2;
@@ -83,6 +92,18 @@ void setup() {
   digitalWrite(KOMP_BASINC1, LOW);
   digitalWrite(ODA_CIKIS, LOW);
   digitalWrite(TAHLİYE, LOW);
+
+  // Initialize OLED display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;);
+  }
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.display();
+
+  Serial.begin(9600);
 }
 
 void loop() {
@@ -153,6 +174,75 @@ void loop() {
       handleK1Sequence();
       break;
   }
+
+  updateDisplay();
+}
+
+void updateDisplay() {
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  String status = "";
+  long remaining = 0;
+
+  switch (currentState) {
+    case IDLE:
+      status = "Hazir";
+      break;
+    case A1_SEQUENCE1:
+      switch (sequenceStep) {
+        case 0: status = "C1 Baslatiliyor"; break;
+        case 1: status = "C1 Aktif"; remaining = 3000 - (millis() - stateStartTime); break;
+        case 2: status = "A1 Aktif"; remaining = 3000 - (millis() - stateStartTime); break;
+        case 3: status = "B1 Aktif"; remaining = 3000 - (millis() - stateStartTime); break;
+      }
+      break;
+    case A1_SEQUENCE2:
+      switch (sequenceStep) {
+        case 0: status = "B2 Baslatiliyor"; break;
+        case 1: status = "B2 Aktif"; remaining = 3000 - (millis() - stateStartTime); break;
+        case 2: status = "A2 Aktif"; remaining = 3000 - (millis() - stateStartTime); break;
+        case 3: status = "Kompresor Emme"; remaining = 30000 - (millis() - stateStartTime); break;
+        case 4: status = "C2 Aktif"; remaining = 3000 - (millis() - stateStartTime); break;
+        case 5: status = "Bekleniyor"; remaining = 30000 - (millis() - stateStartTime); break;
+        case 6: status = "C1 Aktif"; remaining = 3000 - (millis() - stateStartTime); break;
+        case 7: status = "Kompresor Basinç"; remaining = 30000 - (millis() - stateStartTime); break;
+      }
+      break;
+    case WAITING_10MIN:
+      status = "10 Dk Bekleniyor";
+      remaining = 600000 - (millis() - stateStartTime);
+      break;
+    case POST_10MIN_SEQUENCE:
+      switch (sequenceStep) {
+        case 0: status = "Oda Cikis"; break;
+        case 1: status = "A1 Aktif"; remaining = 3000 - (millis() - stateStartTime); break;
+        case 2: status = "B1 Aktif"; remaining = 3000 - (millis() - stateStartTime); break;
+      }
+      break;
+    case K1_SEQUENCE:
+      switch (sequenceStep) {
+        case 0: status = "B2 Baslatiliyor"; break;
+        case 1: status = "B2 Aktif"; remaining = 3000 - (millis() - stateStartTime); break;
+        case 2: status = "A2 Aktif"; remaining = 3000 - (millis() - stateStartTime); break;
+        case 3: status = "Kapatiliyor"; break;
+      }
+      break;
+  }
+
+  if (remaining < 0) remaining = 0;
+
+  display.printf("Durum: %s", status.c_str());
+  if (remaining > 0) {
+    if (remaining >= 60000) {
+      int min = remaining / 60000;
+      int sec = (remaining % 60000) / 1000;
+      display.printf("\nKalan: %d dk %d sn", min, sec);
+    } else {
+      int sec = remaining / 1000;
+      display.printf("\nKalan: %d sn", sec);
+    }
+  }
+  display.display();
 }
 
 void handleA1Sequence1() {
